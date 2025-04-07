@@ -27,22 +27,40 @@ void reverse_string(char * string){
     printf("%s ", string);
 };
 
-int checklen(char * string){
+int isAlphabet(char c) {
+    return ( (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') );
+}
+
+int checklen_and_alphabet(char * string) {
     char *start = string;
-    int counter = -1;
-    while(*start !='\0' ){
-        counter++;
+    int length = 0;
+    int hasAlphabet = 0;
+
+    while (*start != '\0') {
+        if (isAlphabet(*start)) {
+            hasAlphabet = 1;
+        }
+        length++;
         start++;
-        
     }
-    if (counter > 100 || counter == 0 ) {
-        printf("the lenght %d of the string is not correct. Exiting ....", counter);
+
+    if (length == 0) {
+        printf("The string is empty. Exiting....\n");
         return 1;
     }
-    else{
-        return 0;
+
+    if (length > 100) {
+        printf("The length %d of the string exceeds 100. Exiting....\n", length);
+        return 1;
     }
-};
+
+    if (!hasAlphabet) {
+        printf("The string contains no alphabetic characters. Exiting....\n");
+        return 1;
+    }
+
+    return 0;
+}
 
 void charFrecuencies(char * string, int *vowelCounter, int *consonantsCounter, int vowel[5] ){
     char *start = string;
@@ -88,10 +106,6 @@ char * filterSpaces(char * string){
 }
 
 
-int isAlphabet(char c) {
-    
-    return ((c >= 'A' && c <= 'Z')|| c ==' ') || ((c >= 'a' && c <= 'z') || c ==' ');
-}
 
 void filterNonAlphabetic(char *string) {
     char *read = string;
@@ -129,7 +143,7 @@ int main() {
     printf("Type your string (Max: 100 chars) \n" );
     fgets(string, sizeof(string), stdin);
 
-    int len = checklen(string);
+    int len = checklen_and_alphabet(string);
     if (len == 1){
         return 1;
     }
