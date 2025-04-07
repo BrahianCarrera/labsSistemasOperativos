@@ -24,18 +24,19 @@ void reverse_string(char * string){
 
     }
     
-    printf("%s" , string);
+    printf("%s ", string);
 };
 
 int checklen(char * string){
     char *start = string;
-    int counter = 0;
+    int counter = -1;
     while(*start !='\0' ){
         counter++;
         start++;
+        
     }
     if (counter > 100 || counter == 0 ) {
-        printf("the lenght of the string is not correct. Exiting ....");
+        printf("the lenght %d of the string is not correct. Exiting ....", counter);
         return 1;
     }
     else{
@@ -74,7 +75,7 @@ void charFrecuencies(char * string, int *vowelCounter, int *consonantsCounter, i
     }
 }
 
-void filterSpaces(char * string){
+char * filterSpaces(char * string){
 
     char *pointer = string;
     while(*pointer !='\0' ){
@@ -83,15 +84,13 @@ void filterSpaces(char * string){
         }
         pointer++;
     }
-
-    printf(string);
-
+    return string;
 }
 
 
 int isAlphabet(char c) {
     
-    return ((c >= 'A' && c <= 'Z')|| c =='_') || ((c >= 'a' && c <= 'z') || c ==' ');
+    return ((c >= 'A' && c <= 'Z')|| c ==' ') || ((c >= 'a' && c <= 'z') || c ==' ');
 }
 
 void filterNonAlphabetic(char *string) {
@@ -109,13 +108,18 @@ void filterNonAlphabetic(char *string) {
     *write = '\0'; // Cierra la cadena limpiamente
 }
 
+void filterFrecuencies(int vowel[5]){
+    for (int i = 0; i < 5; i++ ){
 
-
-
-
+        if(vowel[i] != 0){
+            printf("%d ", vowel[i]);
+        }
+    
+    } 
+}
 
 int main() {
-    char string[100];
+    char string[1000];
     int vowelCount;
     int consonantCount;
     int vowels[5] = {0};
@@ -129,14 +133,13 @@ int main() {
     if (len == 1){
         return 1;
     }
-    filterSpaces(string);
+    
     filterNonAlphabetic(string);
     reverse_string(string);
+    char * spaces = filterSpaces(string);
     charFrecuencies(string, &vowelCount,&consonantCount,vowels);
-
-    printf("\n  number of vowels: %d\n", vowelCount);
-    printf("number of consonants: %d\n", consonantCount);
-    printf("%d", vowels[1]);
+    filterFrecuencies(vowels);
+    printf("%d %d %s", vowelCount, consonantCount, spaces );
 
     return 0;
 }
