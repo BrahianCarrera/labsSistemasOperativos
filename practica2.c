@@ -28,7 +28,7 @@ void reverse_string(char * string){
 };
 
 int isAlphabet(char c) {
-    return ( (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') );
+    return ( ((c >= 'A' && c <= 'Z')|| c ==' ') || ((c >= 'a' && c <= 'z')||c ==' ') );
 }
 
 int checklen_and_alphabet(char * string) {

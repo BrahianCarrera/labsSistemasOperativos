@@ -74,9 +74,9 @@ func filterNonAlphabetic(s string) string {
 }
 
 func filterFrequencies(vowels []int) {
-	for i, v := range vowels {
-		if v != 0 {
-			fmt.Printf("Vowel %c count: %d\n", "aeiou"[i], v)
+	for v := range vowels {
+		if vowels[v] != 0 {
+			fmt.Printf("%d ", vowels[v])
 		}
 	}
 }
@@ -102,5 +102,5 @@ func main() {
 	charFrequencies(string(reversed), &vowelCount, &consonantCount, vowels)
 
 	filterFrequencies(vowels)
-	fmt.Printf("Total vowels: %d\nTotal consonants: %d\nModified string: %s\n", vowelCount, consonantCount, withUnderscores)
+	fmt.Printf("%d %d %s", vowelCount, consonantCount, withUnderscores)
 }
