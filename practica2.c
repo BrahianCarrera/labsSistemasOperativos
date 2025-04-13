@@ -1,42 +1,44 @@
 #include <stdio.h>
 #include <string.h>
-#include <ctype.h>
+#include <wchar.h>
+#include <wctype.h>
+#include <locale.h>
 
-void reverse_string(char * string){
 
-    char * start = string;
-    char * end = string;
-    
-    while( *end != '\0'){
+void reverse_string(wchar_t *string) {
+    wchar_t *start = string;
+    wchar_t *end = string;
 
-        end++; 
+    while (*end != L'\0') {
+        end++;
     }
     end--;
-    
-    while(start < end){
 
-        char aux  = *start;
+    while (start < end) {
+        wchar_t aux = *start;
         *start = *end;
         *end = aux;
-
         start++;
         end--;
-
     }
-    
-    printf("%s ", string);
-};
 
-int isAlphabet(char c) {
-    return ( ((c >= 'A' && c <= 'Z')|| c ==' ') || ((c >= 'a' && c <= 'z')||c ==' ') );
+    wprintf(L"%ls ", string);
 }
 
-int checklen_and_alphabet(char * string) {
-    char *start = string;
+
+int isAlphabet(wchar_t c) {
+    return (iswalpha(c) || c == L' ' || 
+            c == L'á' || c == L'é' || c == L'í' || c == L'ó' || c == L'ú' ||
+            c == L'Á' || c == L'É' || c == L'Í' || c == L'Ó' || c == L'Ú');
+}
+
+
+int checklen_and_alphabet(wchar_t *string) {
+    wchar_t *start = string;
     int length = 0;
     int hasAlphabet = 0;
 
-    while (*start != '\0') {
+    while (*start != L'\0') {
         if (isAlphabet(*start)) {
             hasAlphabet = 1;
         }
@@ -45,60 +47,48 @@ int checklen_and_alphabet(char * string) {
     }
 
     if (length == 0) {
-        printf("The string is empty. Exiting....\n");
+        wprintf(L"The string is empty. Exiting....\n");
         return 1;
     }
 
     if (length > 100) {
-        printf("The length %d of the string exceeds 100. Exiting....\n", length);
+        wprintf(L"The length %d of the string exceeds 100. Exiting....\n", length);
         return 1;
     }
 
     if (!hasAlphabet) {
-        printf("The string contains no alphabetic characters. Exiting....\n");
+        wprintf(L"The string contains no alphabetic characters. Exiting....\n");
         return 1;
     }
 
     return 0;
 }
 
-void charFrecuencies(char * string, int *vowelCounter, int *consonantsCounter, int vowel[5] ){
-    char *start = string;
-    
 
-
+void charFrecuencies(wchar_t *string, int *vowelCounter, int *consonantCounter, int vowel[5]) {
     *vowelCounter = 0;
-    *consonantsCounter = 0;
+    *consonantCounter = 0;
 
-    while (*start != '\0') {
-        char ch = tolower(*start);
-        if (ch == 'a') { 
-            (*vowelCounter)++;
-             vowel[0]++; }
-        else if (ch == 'e') { 
-            (*vowelCounter)++; 
-            vowel[1]++; }
-        else if (ch == 'i') { 
-            (*vowelCounter)++;
-             vowel[2]++; }
-        else if (ch == 'o') { 
-            (*vowelCounter)++;
-             vowel[3]++; }
-        else if (ch == 'u') { 
-            (*vowelCounter)++;
-             vowel[4]++; }
-        else if (isalpha(ch)) { 
-            (*consonantsCounter)++; }
-        start++;
+    while (*string != L'\0') {
+        wchar_t ch = towlower(*string);
+
+        if (ch == L'a' || ch == L'á') { (*vowelCounter)++; vowel[0]++; }
+        else if (ch == L'e' || ch == L'é') { (*vowelCounter)++; vowel[1]++; }
+        else if (ch == L'i' || ch == L'í') { (*vowelCounter)++; vowel[2]++; }
+        else if (ch == L'o' || ch == L'ó') { (*vowelCounter)++; vowel[3]++; }
+        else if (ch == L'u' || ch == L'ú') { (*vowelCounter)++; vowel[4]++; }
+        else if (iswalpha(ch)) { (*consonantCounter)++; }
+
+        string++;
     }
 }
 
-char * filterSpaces(char * string){
 
-    char *pointer = string;
-    while(*pointer !='\0' ){
-        if (*pointer == ' '){
-            *pointer = '_';
+wchar_t* filterSpaces(wchar_t *string) {
+    wchar_t *pointer = string;
+    while (*pointer != L'\0') {
+        if (*pointer == L' ') {
+            *pointer = L'_';
         }
         pointer++;
     }
@@ -106,12 +96,11 @@ char * filterSpaces(char * string){
 }
 
 
+void filterNonAlphabetic(wchar_t *string) {
+    wchar_t *read = string;
+    wchar_t *write = string;
 
-void filterNonAlphabetic(char *string) {
-    char *read = string;
-    char *write = string;
-
-    while (*read != '\0') {
+    while (*read != L'\0') {
         if (isAlphabet(*read)) {
             *write = *read;
             write++;
@@ -119,46 +108,40 @@ void filterNonAlphabetic(char *string) {
         read++;
     }
 
-    *write = '\0'; // Cierra la cadena limpiamente
+    *write = L'\0'; 
 }
 
-void filterFrecuencies(int vowel[5]){
-    for (int i = 0; i < 5; i++ ){
 
-        if(vowel[i] != 0){
-            printf("%d ", vowel[i]);
+void filterFrecuencies(int vowel[5]) {
+    for (int i = 0; i < 5; i++) {
+        if (vowel[i] != 0) {
+            wprintf(L"%d ", vowel[i]);
         }
-    
-    } 
+    }
 }
 
 int main() {
-    char string[1000];
+    setlocale(LC_ALL, ""); 
+
+    wchar_t string[1000];
     int vowelCount;
     int consonantCount;
     int vowels[5] = {0};
 
-
-    
-    printf("Type your string (Max: 100 chars) \n" );
-    fgets(string, sizeof(string), stdin);
+    wprintf(L"Type your string (Max: 100 chars):\n");
+    fgetws(string, sizeof(string) / sizeof(wchar_t), stdin);
 
     int len = checklen_and_alphabet(string);
-    if (len == 1){
+    if (len == 1) {
         return 1;
     }
-    
+
     filterNonAlphabetic(string);
     reverse_string(string);
-    char * spaces = filterSpaces(string);
-    charFrecuencies(string, &vowelCount,&consonantCount,vowels);
+    filterSpaces(string);
+    charFrecuencies(string, &vowelCount, &consonantCount, vowels);
     filterFrecuencies(vowels);
-    printf("%d %d %s", vowelCount, consonantCount, spaces );
+    wprintf(L"%d %d %ls", vowelCount, consonantCount, string);
 
     return 0;
 }
-
-
-
-
-
