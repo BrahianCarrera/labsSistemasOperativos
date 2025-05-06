@@ -1,10 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#ifdef _WIN32
-#include <windows.h>
-typedef long ssize_t;
-#else
 #include <unistd.h>
 #include <sys/wait.h>
 #include <sys/mman.h>
@@ -24,12 +20,9 @@ float **load_matrix(const char *filename, int *rows, int *cols)
     *cols = 0;
 
     char *line = NULL;
-    char *line = NULL;
     size_t len = 0;
     ssize_t read;
-    ssize_t read;
 
-    while ((read = getline(&line, &len, file)) != -1)
     while ((read = getline(&line, &len, file)) != -1)
     {
         char *token;
@@ -46,7 +39,7 @@ float **load_matrix(const char *filename, int *rows, int *cols)
 
         matrix[*rows] = NULL;
 
-        token = strtok(line, " \t\n");
+        token = strtok(line, " \n");
         while (token)
         {
             matrix[*rows] = realloc(matrix[*rows], (current_col + 1) * sizeof(float));
@@ -78,25 +71,32 @@ float **load_matrix(const char *filename, int *rows, int *cols)
     }
 
     free(line);
-    free(line);
     fclose(file);
     return matrix;
 }
 
+// Función corregida: ahora usa rows2 como parámetro
 float *dot_product(float **matrix1, float **matrix2, int processes,
-                   int rows, int cols, int rows2, int cols2)
+                   int rows1, int cols1, int rows2, int cols2)
 {
-    int subset = rows / processes;
-    int extra = rows % processes;
+    // Verificar compatibilidad de matrices
+    if (cols1 != rows2)
+    {
+        fprintf(stderr, "Error: Incompatible dimensions for multiplication\n");
+        return NULL;
+    }
 
-    float *result = mmap(NULL, sizeof(float) * rows * cols2,
+    int subset = rows1 / processes;
+    int extra = rows1 % processes;
+
+    float *result = mmap(NULL, sizeof(float) * rows1 * cols2,
                          PROT_READ | PROT_WRITE,
                          MAP_SHARED | MAP_ANONYMOUS, -1, 0);
 
     if (result == MAP_FAILED)
     {
         perror("mmap");
-        exit(1);
+        return NULL;
     }
 
     for (int p = 0; p < processes; p++)
@@ -109,23 +109,25 @@ float *dot_product(float **matrix1, float **matrix2, int processes,
         if (pid < 0)
         {
             perror("fork");
-            exit(1);
+            munmap(result, sizeof(float) * rows1 * cols2);
+            return NULL;
         }
         else if (pid == 0)
         {
+
             for (int i = start_row; i < start_row + num_rows; i++)
             {
                 for (int j = 0; j < cols2; j++)
                 {
                     result[i * cols2 + j] = 0;
-                    for (int k = 0; k < cols; k++)
+                    for (int k = 0; k < cols1; k++)
                     {
                         result[i * cols2 + j] += matrix1[i][k] * matrix2[k][j];
                     }
                 }
             }
 
-            munmap(result, sizeof(float) * rows * cols2);
+            munmap(result, sizeof(float) * rows1 * cols2);
             exit(0);
         }
     }
@@ -142,7 +144,7 @@ void print_matrix_flat(float *flat_matrix, int rows, int cols)
     {
         for (int j = 0; j < cols; j++)
         {
-            printf("%.10f ", flat_matrix[i * cols + j]);
+            printf("%.2f ", flat_matrix[i * cols + j]);
         }
         printf("\n");
     }
@@ -155,25 +157,43 @@ void free_matrix(float **matrix, int rows)
     free(matrix);
 }
 
-int verify_sizea(int cols1, int rows2)
+float *dot_product_sequential(float **matrix1, float **matrix2,
+                              int rows1, int cols1, int rows2, int cols2)
 {
     if (cols1 != rows2)
     {
-        fprintf(stderr, "Error: No se pueden multiplicar matrices (cols 1: %d) y (rows 2%d)\n", cols1, rows2);
-        return 1;
+        fprintf(stderr, "Error: Incompatible dimensions for multiplication\n");
+        return NULL;
     }
-    else
-        return 0;
+
+    float *result = malloc(sizeof(float) * rows1 * cols2);
+    if (!result)
+    {
+        perror("malloc");
+        return NULL;
+    }
+
+    for (int i = 0; i < rows1; i++)
+    {
+        for (int j = 0; j < cols2; j++)
+        {
+            result[i * cols2 + j] = 0;
+            for (int k = 0; k < cols1; k++)
+            {
+                result[i * cols2 + j] += matrix1[i][k] * matrix2[k][j];
+            }
+        }
+    }
+    return result;
 }
 
 int main()
 {
-    clock_t start_t, end_t;
+    clock_t start_t, end_t, start_t2, end_t2;
     int rows1, cols1;
     int rows2, cols2;
-    double total_t;
+    double sequential_t, concurrent_t;
 
-    // Solo el proceso principal debería ejecutar esto
     float **matrix1 = load_matrix("matriz1.txt", &rows1, &cols1);
     if (!matrix1)
     {
@@ -198,22 +218,61 @@ int main()
     }
 
     start_t = clock();
-    float *result = dot_product(matrix1, matrix2, 10, rows1, cols1, rows2, cols2);
+    float *seq_result = dot_product_sequential(matrix1, matrix2, rows1, cols1, rows2, cols2);
     end_t = clock();
 
-    if (result)
+    if (!seq_result)
     {
-        printf("Resultado:\n");
-        // print_matrix_flat(result, rows1, cols2);
-        munmap(result, sizeof(float) * rows1 * cols2);
+        fprintf(stderr, "Error trying to execute sequential dot product\n");
+        free_matrix(matrix1, rows1);
+        free_matrix(matrix2, rows2);
+        return 1;
     }
 
-    total_t = (double)(end_t - start_t) / CLOCKS_PER_SEC;
-    printf("Time for the calculation: %.10f seconds\n", total_t);
+    sequential_t = (double)(end_t - start_t) / CLOCKS_PER_SEC;
 
-    // Liberar memoria
-    free_matrix(matrix1, rows1);
-    free_matrix(matrix2, rows2);
+    // Liberar resultado secuencial
+    free(seq_result);
 
-    return 0;
+    int processes;
+    printf("Please enter the number of processes to create ");
+    if (scanf("%d", &processes) == 1 && processes > 0)
+    {
+
+        start_t2 = clock();
+        float *result = dot_product(matrix1, matrix2, processes, rows1, cols1, rows2, cols2);
+        end_t2 = clock();
+
+        if (result)
+        {
+
+            munmap(result, sizeof(float) * rows1 * cols2);
+        }
+        else
+        {
+            fprintf(stderr, "Error while applying parallel dot product\n");
+            free_matrix(matrix1, rows1);
+            free_matrix(matrix2, rows2);
+            return 1;
+        }
+
+        concurrent_t = (double)(end_t2 - start_t2) / CLOCKS_PER_SEC;
+
+        // Liberar memoria
+        free_matrix(matrix1, rows1);
+        free_matrix(matrix2, rows2);
+
+        printf("Sequential time: %.10f \n", sequential_t);
+        printf("Parallel time  (%d processes): %.10f \n", processes, concurrent_t);
+        printf("Speedup: %.6fX\n", (sequential_t / concurrent_t));
+
+        return 0;
+    }
+    else
+    {
+        printf("Error: please enter a correct processes value\n");
+        free_matrix(matrix1, rows1);
+        free_matrix(matrix2, rows2);
+        return 1;
+    }
 }
