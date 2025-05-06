@@ -1,6 +1,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifdef _WIN32
+#include <windows.h>
+typedef long ssize_t;
+#else
 #include <unistd.h>
 #include <sys/wait.h>
 #include <sys/mman.h>
@@ -20,9 +24,12 @@ float **load_matrix(const char *filename, int *rows, int *cols)
     *cols = 0;
 
     char *line = NULL;
+    char *line = NULL;
     size_t len = 0;
     ssize_t read;
+    ssize_t read;
 
+    while ((read = getline(&line, &len, file)) != -1)
     while ((read = getline(&line, &len, file)) != -1)
     {
         char *token;
@@ -39,7 +46,7 @@ float **load_matrix(const char *filename, int *rows, int *cols)
 
         matrix[*rows] = NULL;
 
-        token = strtok(line, " \n");
+        token = strtok(line, " \t\n");
         while (token)
         {
             matrix[*rows] = realloc(matrix[*rows], (current_col + 1) * sizeof(float));
@@ -70,6 +77,7 @@ float **load_matrix(const char *filename, int *rows, int *cols)
         (*rows)++;
     }
 
+    free(line);
     free(line);
     fclose(file);
     return matrix;
