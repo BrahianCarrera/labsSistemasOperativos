@@ -1,10 +1,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifdef _WIN32
+#include <windows.h>
+typedef long ssize_t;
+#else
 #include <unistd.h>
 #include <sys/wait.h>
-
-#define MAX_LINE 1024
+#endif
 
 float **load_matrix(const char *filename, int *rows, int *cols)
 {
@@ -16,53 +19,35 @@ float **load_matrix(const char *filename, int *rows, int *cols)
     }
 
     float **matrix = NULL;
-
     *rows = 0;
     *cols = 0;
 
-    char *linea = NULL;
+    char *line = NULL;
     size_t len = 0;
-    size_t nread = getline(&linea, &len, file);
+    ssize_t read;
 
-    int contador = 0;
-    if (nread != -1)
-    {
-        char *ptr = linea;
-        char *end;
-
-        while (*ptr)
-        {
-            // Intentar convertir un float desde ptr
-            float valor = strtof(ptr, &end);
-
-            if (ptr != end)
-            {
-                contador++;
-                ptr = end; // avanzar al siguiente token
-            }
-            else
-            {
-                ptr++; // avanzar si no se encontró número
-            }
-        }
-    }
-    char line[contador * 1000];
-
-    while (fgets(line, sizeof(line), file))
+    while ((read = getline(&line, &len, file)) != -1)
     {
         char *token;
         int current_col = 0;
 
         matrix = realloc(matrix, (*rows + 1) * sizeof(float *));
+        if (!matrix)
+        {
+            perror("Error reallocating matrix");
+            fclose(file);
+            free(line);
+            return NULL;
+        }
+
         matrix[*rows] = NULL;
 
-        token = strtok(line, " \n");
+        token = strtok(line, " \t\n");
         while (token)
         {
-
             matrix[*rows] = realloc(matrix[*rows], (current_col + 1) * sizeof(float));
-            matrix[*rows][current_col] = atof(token);
-            token = strtok(NULL, " \n");
+            matrix[*rows][current_col] = strtof(token, NULL); // usar strtof en vez de atof
+            token = strtok(NULL, " \t\n");
             current_col++;
         }
 
@@ -74,12 +59,17 @@ float **load_matrix(const char *filename, int *rows, int *cols)
         {
             fprintf(stderr, "Inconsistent number of columns in row %d\n", *rows);
             fclose(file);
+            free(line);
+            for (int i = 0; i <= *rows; i++)
+                free(matrix[i]);
+            free(matrix);
             return NULL;
         }
 
         (*rows)++;
     }
 
+    free(line);
     fclose(file);
     return matrix;
 }
