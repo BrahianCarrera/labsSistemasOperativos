@@ -128,6 +128,29 @@ func divideMatrixRows(a [][]float64, parts int) [][][]float64 {
 	return divided
 }
 
+func save_matrix(matrix [][]float64, filename string) error {
+	file, err := os.Create(filename)
+	if err != nil {
+		return fmt.Errorf("could not create file: %w", err)
+	}
+	defer file.Close()
+
+	writer := bufio.NewWriter(file)
+	for _, row := range matrix {
+		for j, val := range row {
+			_, err := writer.WriteString(fmt.Sprintf("%f", val))
+			if err != nil {
+				return fmt.Errorf("error writing value: %w", err)
+			}
+			if j < len(row)-1 {
+				writer.WriteString(" ")
+			}
+		}
+		writer.WriteString("\n")
+	}
+	return writer.Flush()
+}
+
 func performParallelMult(a, b [][]float64, workers int) ([][]float64, time.Duration) {
 
 	aChunks := divideMatrixRows(a, workers)
@@ -238,7 +261,12 @@ func main() {
 
 	// ejecutar paralelo
 	processes := askWorkers(len(a))
-	_, timePar := performParallelMult(a, b, processes)
+	result, timePar := performParallelMult(a, b, processes)
+
+	err := save_matrix(result, "../ArchivosTXT/C.txt")
+	if err != nil {
+		fmt.Println("Error saving result:", err)
+	}
 
 	SpeedUp := timeSeq.Seconds() / timePar.Seconds()
 
