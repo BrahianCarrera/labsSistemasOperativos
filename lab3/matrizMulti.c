@@ -77,7 +77,28 @@ float **load_matrix(const char *filename, int *rows, int *cols)
     return matrix;
 }
 
-float *dot_product(float **matrix1, float **matrix2, int processes,
+void save_matrix(const char *filename, float *matrix, int rows, int cols)
+{
+    FILE *file = fopen(filename, "w");
+    if (!file)
+    {
+        perror("Error opening output file");
+        return;
+    }
+
+    for (int i = 0; i < rows; i++)
+    {
+        for (int j = 0; j < cols; j++)
+        {
+            fprintf(file, "%.2f ", matrix[i * cols + j]);
+        }
+        fprintf(file, "\n");
+    }
+
+    fclose(file);
+}
+
+float *dot_product(float **A, float **B, int processes,
                    int rows1, int cols1, int rows2, int cols2)
 {
     if (cols1 != rows2)
@@ -100,7 +121,7 @@ float *dot_product(float **matrix1, float **matrix2, int processes,
     if (result == (float *)-1)
     {
         perror("shmat");
-        shmctl(shmid, IPC_RMID, NULL); // Clean up
+        shmctl(shmid, IPC_RMID, NULL);
         return NULL;
     }
 
@@ -127,17 +148,17 @@ float *dot_product(float **matrix1, float **matrix2, int processes,
                     result[i * cols2 + j] = 0;
                     for (int k = 0; k < cols1; k++)
                     {
-                        result[i * cols2 + j] += matrix1[i][k] * matrix2[k][j];
+                        result[i * cols2 + j] += A[i][k] * B[k][j];
                     }
                 }
             }
 
-            shmdt(result); // Cada hijo solo se desconecta, no borra
-            exit(0);       // Asegúrate de que el hijo no continúe
+            shmdt(result);
+            exit(0); // stop child
         }
     }
 
-    // Espera a todos los hijos antes de usar los resultados
+    // cuando todo slos hijos terminen:
     for (int i = 0; i < processes; i++)
         wait(NULL);
 
@@ -163,7 +184,7 @@ void free_matrix(float **matrix, int rows)
     free(matrix);
 }
 
-float *dot_product_sequential(float **matrix1, float **matrix2,
+float *dot_product_sequential(float **A, float **B,
                               int rows1, int cols1, int rows2, int cols2)
 {
     if (cols1 != rows2)
@@ -186,7 +207,7 @@ float *dot_product_sequential(float **matrix1, float **matrix2,
             result[i * cols2 + j] = 0;
             for (int k = 0; k < cols1; k++)
             {
-                result[i * cols2 + j] += matrix1[i][k] * matrix2[k][j];
+                result[i * cols2 + j] += A[i][k] * B[k][j];
             }
         }
     }
@@ -200,38 +221,38 @@ int main()
     int rows2, cols2;
     double sequential_t, concurrent_t;
 
-    float **matrix1 = load_matrix("matriz1.txt", &rows1, &cols1);
-    if (!matrix1)
+    float **A = load_matrix("ArchivosTXT/A.txt", &rows1, &cols1);
+    if (!A)
     {
         fprintf(stderr, "Error loading matrix A.\n");
         return 1;
     }
 
-    float **matrix2 = load_matrix("matriz2.txt", &rows2, &cols2);
-    if (!matrix2)
+    float **B = load_matrix("ArchivosTXT/B.txt", &rows2, &cols2);
+    if (!B)
     {
         fprintf(stderr, "Error loading matrix B.\n");
-        free_matrix(matrix1, rows1);
+        free_matrix(A, rows1);
         return 1;
     }
 
     if (cols1 != rows2)
     {
         fprintf(stderr, "Error: Incompatible dimensions (%d cols vs %d rows).\n", cols1, rows2);
-        free_matrix(matrix1, rows1);
-        free_matrix(matrix2, rows2);
+        free_matrix(A, rows1);
+        free_matrix(B, rows2);
         return 1;
     }
 
     start_t = clock();
-    float *seq_result = dot_product_sequential(matrix1, matrix2, rows1, cols1, rows2, cols2);
+    float *seq_result = dot_product_sequential(A, B, rows1, cols1, rows2, cols2);
     end_t = clock();
 
     if (!seq_result)
     {
         fprintf(stderr, "Error trying to execute sequential dot product\n");
-        free_matrix(matrix1, rows1);
-        free_matrix(matrix2, rows2);
+        free_matrix(A, rows1);
+        free_matrix(B, rows2);
         return 1;
     }
 
@@ -246,30 +267,30 @@ int main()
     {
 
         start_t2 = clock();
-        float *result = dot_product(matrix1, matrix2, processes, rows1, cols1, rows2, cols2);
+        float *result = dot_product(A, B, processes, rows1, cols1, rows2, cols2);
         end_t2 = clock();
 
         if (result)
         {
 
             concurrent_t = (double)(end_t2 - start_t2) / CLOCKS_PER_SEC;
+            save_matrix("ArchivosTXT/C.txt", result, rows1, cols2);
+            shmdt(result);
 
-            shmdt(result); // Detach
-            // Get the shmid again for cleanup (you could also return shmid from dot_product)
             int shmid = shmget(IPC_PRIVATE, 0, 0666);
-            shmctl(shmid, IPC_RMID, NULL); // Remove
+            shmctl(shmid, IPC_RMID, NULL);
         }
         else
         {
             fprintf(stderr, "Error while applying parallel dot product\n");
-            free_matrix(matrix1, rows1);
-            free_matrix(matrix2, rows2);
+            free_matrix(A, rows1);
+            free_matrix(B, rows2);
             return 1;
         }
 
         // Liberar memoria
-        free_matrix(matrix1, rows1);
-        free_matrix(matrix2, rows2);
+        free_matrix(A, rows1);
+        free_matrix(B, rows2);
 
         printf("Sequential time: %.10f \n", sequential_t);
         printf("Parallel time  (%d processes): %.10f \n", processes, concurrent_t);
@@ -280,8 +301,8 @@ int main()
     else
     {
         printf("Error: please enter a correct processes value\n");
-        free_matrix(matrix1, rows1);
-        free_matrix(matrix2, rows2);
+        free_matrix(A, rows1);
+        free_matrix(B, rows2);
         return 1;
     }
 }
