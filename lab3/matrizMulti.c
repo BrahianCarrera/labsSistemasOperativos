@@ -4,7 +4,9 @@
 #include <unistd.h>
 #include <sys/wait.h>
 #include <sys/mman.h>
+#include <sys/ipc.h>
 #include <time.h>
+#include <sys/shm.h>
 
 float **load_matrix(const char *filename, int *rows, int *cols)
 {
@@ -75,11 +77,9 @@ float **load_matrix(const char *filename, int *rows, int *cols)
     return matrix;
 }
 
-// Función corregida: ahora usa rows2 como parámetro
 float *dot_product(float **matrix1, float **matrix2, int processes,
                    int rows1, int cols1, int rows2, int cols2)
 {
-    // Verificar compatibilidad de matrices
     if (cols1 != rows2)
     {
         fprintf(stderr, "Error: Incompatible dimensions for multiplication\n");
@@ -89,13 +89,18 @@ float *dot_product(float **matrix1, float **matrix2, int processes,
     int subset = rows1 / processes;
     int extra = rows1 % processes;
 
-    float *result = mmap(NULL, sizeof(float) * rows1 * cols2,
-                         PROT_READ | PROT_WRITE,
-                         MAP_SHARED | MAP_ANONYMOUS, -1, 0);
-
-    if (result == MAP_FAILED)
+    int shmid = shmget(IPC_PRIVATE, sizeof(float) * rows1 * cols2, IPC_CREAT | 0666);
+    if (shmid < 0)
     {
-        perror("mmap");
+        perror("shmget");
+        return NULL;
+    }
+
+    float *result = (float *)shmat(shmid, NULL, 0);
+    if (result == (float *)-1)
+    {
+        perror("shmat");
+        shmctl(shmid, IPC_RMID, NULL); // Clean up
         return NULL;
     }
 
@@ -109,12 +114,12 @@ float *dot_product(float **matrix1, float **matrix2, int processes,
         if (pid < 0)
         {
             perror("fork");
-            munmap(result, sizeof(float) * rows1 * cols2);
-            return NULL;
+            shmdt(result);
+            shmctl(shmid, IPC_RMID, NULL);
+            exit(1);
         }
         else if (pid == 0)
         {
-
             for (int i = start_row; i < start_row + num_rows; i++)
             {
                 for (int j = 0; j < cols2; j++)
@@ -127,11 +132,12 @@ float *dot_product(float **matrix1, float **matrix2, int processes,
                 }
             }
 
-            munmap(result, sizeof(float) * rows1 * cols2);
-            exit(0);
+            shmdt(result); // Cada hijo solo se desconecta, no borra
+            exit(0);       // Asegúrate de que el hijo no continúe
         }
     }
 
+    // Espera a todos los hijos antes de usar los resultados
     for (int i = 0; i < processes; i++)
         wait(NULL);
 
@@ -231,7 +237,7 @@ int main()
 
     sequential_t = (double)(end_t - start_t) / CLOCKS_PER_SEC;
 
-    // Liberar resultado secuencial
+    // Liberar mmemoria del procedimiento sequencial :P
     free(seq_result);
 
     int processes;
@@ -246,7 +252,12 @@ int main()
         if (result)
         {
 
-            munmap(result, sizeof(float) * rows1 * cols2);
+            concurrent_t = (double)(end_t2 - start_t2) / CLOCKS_PER_SEC;
+
+            shmdt(result); // Detach
+            // Get the shmid again for cleanup (you could also return shmid from dot_product)
+            int shmid = shmget(IPC_PRIVATE, 0, 0666);
+            shmctl(shmid, IPC_RMID, NULL); // Remove
         }
         else
         {
@@ -255,8 +266,6 @@ int main()
             free_matrix(matrix2, rows2);
             return 1;
         }
-
-        concurrent_t = (double)(end_t2 - start_t2) / CLOCKS_PER_SEC;
 
         // Liberar memoria
         free_matrix(matrix1, rows1);
